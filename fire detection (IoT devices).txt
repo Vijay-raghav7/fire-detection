@@ -1,0 +1,79 @@
+#define BLYNK_TEMPLATE_ID "TMPL3rFZGMbOn"
+#define BLYNK_TEMPLATE_NAME "fire detection"
+#define BLYNK_AUTH_TOKEN "YIl5ArTJ8KQdeJGYxQK95ISZ2FbXos80"
+
+#define BLYNK_PRINT Serial
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "hello";  // Your Wi-Fi name
+char pass[] = "12345678";             // Your Wi-Fi password
+
+BlynkTimer timer;
+
+// Define the GPIO pins for each sensor and actuator
+#define DHTPIN 4              // Temperature sensor (DHT22)
+#define DHTTYPE DHT22         // DHT22 type
+#define FLAME_SENSOR_PIN 35    // Analog pin for flame sensor
+#define SMOKE_SENSOR_PIN 32   // Analog pin for smoke sensor
+#define BUZZER_PIN 15          // GPIO pin for the buzzer
+#define FLAME_THRESHOLD 500    // Threshold for flame sensor reading
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void sendSensorData() {
+  // Read temperature and humidity from DHT sensor
+  float temperature = dht.readTemperature();
+  
+  // Read flame sensor value
+  int flameValue = analogRead(FLAME_SENSOR_PIN);
+  
+  // Read smoke sensor value
+  int smokeValue = analogRead(SMOKE_SENSOR_PIN);
+  
+  // Print sensor readings to the Serial Monitor
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print(" %, Flame Sensor: ");
+  Serial.print(flameValue);
+  Serial.print(", Smoke Sensor: ");
+  Serial.println(smokeValue);
+
+  // Send temperature and smoke values to Blynk
+  Blynk.virtualWrite(V0, temperature);
+  Blynk.virtualWrite(V1, smokeValue);
+
+  // Check if flame value exceeds threshold
+  if (flameValue > FLAME_THRESHOLD) {
+    // Log event in Blynk, trigger notification, and turn on virtual LED
+    Blynk.logEvent("motion_detcted", "Warning: High flame detected!");
+    Blynk.virtualWrite(V2, 255);  // Virtual LED ON in Blynk
+    
+    // Activate the physical buzzer
+    digitalWrite(BUZZER_PIN, HIGH);
+  } else {
+    // Turn off virtual LED in Blynk if flame value is below threshold
+    Blynk.virtualWrite(V2, 0);
+    digitalWrite(BUZZER_PIN, LOW);  // Turn off the buzzer
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Blynk.begin(auth, ssid, pass);
+
+  dht.begin();
+  pinMode(FLAME_SENSOR_PIN, INPUT);
+  pinMode(SMOKE_SENSOR_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  
+  // Set timer to send sensor data every 10 seconds
+  timer.setInterval(10000L, sendSensorData);
+}
+
+void loop() {
+  Blynk.run();
+  timer.run();
+}
